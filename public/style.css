@@ -169,11 +169,22 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 .check input { width: 20px; height: 20px; flex: none; margin: 2px 0 0; accent-color: var(--green); }
 .search { display: flex; gap: 8px; max-width: 640px; }
 .search input { flex: 1 1 auto; min-width: 0; }
+.search .btn { flex: none; white-space: nowrap; }
 details { margin-top: 6px; }
 summary { cursor: pointer; color: var(--green); text-decoration: underline; padding: 6px 0; }
 .help { border-collapse: collapse; font-size: 14px; margin: 6px 0 10px; }
 .help th, .help td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
 .help th { background: var(--paper); font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-weight: 400; white-space: nowrap; }
+
+.importer { max-width: 640px; box-sizing: border-box; background: var(--paper); border: 1px solid var(--line); border-radius: 2px; padding: 18px 20px; margin: 0 0 24px; display: flex; flex-direction: column; gap: 12px; }
+.importer h2 { font-family: var(--serif); font-size: 22px; font-weight: 600; margin: 0; }
+.importer p { margin: 0; }
+.importer-row { display: flex; flex-direction: column; gap: 6px; }
+.importer label { font-size: 15px; font-weight: 600; }
+.importer input[type=file] { font: inherit; font-size: 15px; min-height: 44px; max-width: 100%; }
+.importer .msg:empty { display: none; }
+.importer .msg.ok { color: var(--green); }
+.importer[aria-busy=true] .btn { opacity: 0.6; }
 
 /* ---------- librarians' desk ---------- */
 

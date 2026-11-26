@@ -5,6 +5,7 @@ const { verifyMessage, getAddress, isAddress } = require('ethers');
 const { pool, init } = require('./db');
 const views = require('./views');
 const { countWords } = require('./text');
+const importer = require('./import');
 
 const PORT = process.env.PORT || 3000;
 const COOKIE = '__Host-library';
@@ -278,6 +279,43 @@ app.post('/api/auth/logout', wrap(async (req, res) => {
   if (token) await pool.query('DELETE FROM sessions WHERE token_hash = $1', [sha256(token)]);
   setSessionCookie(res, '', 0);
   res.json({ ok: true });
+}));
+
+// ---------- importing a text ----------
+
+// Both routes hand back fields for the contribute form; nothing is saved here, and the
+// page or PDF itself is not kept. The contributor still checks the text and shelves it.
+function imported(result) {
+  let body = result.body;
+  const notes = [];
+  if (body.length > MAX_BODY_CHARS) {
+    body = body.slice(0, MAX_BODY_CHARS).replace(/\s+\S*$/, '');
+    notes.push(`The text was longer than the library allows, so it stops after ${MAX_BODY_CHARS.toLocaleString('en')} characters.`);
+  }
+  return { title: result.title || '', author: result.author || '', year: result.year || '', source_url: result.source_url || '', body, words: countWords(body), pages: result.pages || 0, notes };
+}
+
+async function importing(req, work) {
+  const user = requireUser(req);
+  rateLimit(`import:${user.address}`, 20, 3600_000);
+  try {
+    return imported(await work());
+  } catch (err) {
+    if (err instanceof importer.ImportError) throw new HttpError(422, err.message);
+    console.error('import failed:', err && err.message);
+    throw new HttpError(422, 'That could not be read. Paste the text instead.');
+  }
+}
+
+app.post('/api/import/link', wrap(async (req, res) => {
+  const url = req.body && req.body.url;
+  if (typeof url !== 'string' || url.length > 2000) throw new HttpError(400, 'Give the address of a web page or PDF');
+  res.json(await importing(req, () => importer.fromLink(url)));
+}));
+
+app.put('/api/import/pdf', express.raw({ type: () => true, limit: importer.MAX_PDF_BYTES }), wrap(async (req, res) => {
+  if (!Buffer.isBuffer(req.body) || !req.body.length) throw new HttpError(400, 'Choose a PDF file');
+  res.json(await importing(req, () => importer.fromPdf(req.body)));
 }));
 
 app.use('/api', (req, res, next) => next(new HttpError(404, 'Not found')));
@@ -574,7 +612,7 @@ app.use((err, req, res, next) => {
   let status = err instanceof HttpError ? err.status : 500;
   let text = err instanceof HttpError ? err.message : 'Something went wrong';
   if (err.type === 'entity.parse.failed') { status = 400; text = 'That request could not be read'; }
-  if (err.type === 'entity.too.large') { status = 413; text = `That is too large (a reading can be up to ${MAX_BODY_CHARS.toLocaleString('en')} characters)`; }
+  if (err.type === 'entity.too.large') { status = 413; text = req.path.startsWith('/api/import') ? 'That PDF is too large (up to 15 MB)' : `That is too large (a reading can be up to ${MAX_BODY_CHARS.toLocaleString('en')} characters)`; }
   if (err.type === 'parameters.too.many') { status = 400; text = 'That request could not be read'; }
   if (status === 500) console.error(err);
   if (req.path.startsWith('/api/')) return res.status(status).json({ error: text });

@@ -120,6 +120,7 @@ ${whoami}
   </div>
 </footer>
 <script src="/wallet.js" defer></script>
+<script src="/import.js" defer></script>
 </body>
 </html>`;
 }
@@ -342,6 +343,19 @@ function contribute({ user, shelves, maxChars }) {
   return box(
     'Contribute a reading',
     `<p class="lede">Add a text you think the community should read. It goes on the shelf straight away, under your wallet address <code>${esc(short(user.address))}</code>. You can edit it or take it down later.</p>
+    <section class="importer" aria-labelledby="import-h">
+      <h2 id="import-h">Start from a link or a PDF</h2>
+      <p class="hint">The library pulls out the text and fills in the form below. Nothing is shelved until you have checked it and pressed the button at the bottom. The page or file itself is not kept.</p>
+      <div class="importer-row">
+        <label for="import-url">Web address</label>
+        <div class="search"><input id="import-url" type="url" maxlength="2000" placeholder="https://"><button type="button" class="btn" data-import="link">Fetch the text</button></div>
+      </div>
+      <div class="importer-row">
+        <label for="import-pdf">PDF file <span class="hint">(up to 15 MB, with real text rather than scanned pages)</span></label>
+        <input id="import-pdf" type="file" accept="application/pdf,.pdf" data-import="pdf">
+      </div>
+      <div class="msg" data-import-msg role="status" aria-live="polite"></div>
+    </section>
     <form class="form wide" method="post" action="/contribute">
       ${readingFields({ shelves, maxChars })}
       <label class="check"><input type="checkbox" name="rights" value="yes" required> <span>This text is free to share here: it is my own, in the public domain, or under a licence that allows it.</span></label>
