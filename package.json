@@ -1,0 +1,19 @@
+{
+  "name": "library",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Alternet Library: readings contributed by the community, hosted in full and kept on open shelves.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/text.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ethers": "^6.17.0",
+    "express": "^5.1.0",
+    "pg": "^8.16.0"
+  }
+}
