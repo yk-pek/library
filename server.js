@@ -205,6 +205,7 @@ async function page(req, res, title, body, extra = {}) {
       user: req.user,
       isLibrarian: req.isLibrarian,
       visitors: extra.visitors,
+      currentShelf: extra.shelf,
       networkLabel: NETWORK_LABEL,
       body,
     })
@@ -301,13 +302,13 @@ app.get('/shelf/:slug', wrap(async (req, res) => {
   if (!shelves[0]) throw new HttpError(404, 'There is no such shelf');
   const l = listing(req);
   const list = await listReadings('r.shelf_slug = $1 AND NOT r.removed', [shelves[0].slug], l);
-  await page(req, res, shelves[0].name, views.shelf({ shelf: shelves[0], ...list, ...l }));
+  await page(req, res, shelves[0].name, views.shelf({ shelf: shelves[0], ...list, ...l }), { shelf: shelves[0].slug });
 }));
 
 app.get('/all', wrap(async (req, res) => {
   const l = listing(req);
   const list = await listReadings('NOT r.removed', [], l);
-  await page(req, res, 'All readings', views.list({ heading: 'ALL READINGS', base: '/all', ...list, ...l }));
+  await page(req, res, 'All readings', views.list({ heading: 'All readings', base: '/all', ...list, ...l }));
 }));
 
 app.get('/tag/:tag', wrap(async (req, res) => {
@@ -315,7 +316,7 @@ app.get('/tag/:tag', wrap(async (req, res) => {
   if (!tag) throw new HttpError(404, 'There is no such tag');
   const l = listing(req);
   const list = await listReadings('r.tags @> ARRAY[$1]::text[] AND NOT r.removed', [tag], l);
-  await page(req, res, `Tagged ${tag}`, views.list({ heading: `TAGGED: ${tag}`, base: `/tag/${tag}`, empty: 'Nothing carries this tag yet.', ...list, ...l }));
+  await page(req, res, `Tagged ${tag}`, views.list({ heading: `Tagged #${tag}`, base: `/tag/${tag}`, empty: 'Nothing carries this tag yet.', ...list, ...l }));
 }));
 
 app.get('/by/:address', wrap(async (req, res) => {
@@ -324,7 +325,7 @@ app.get('/by/:address', wrap(async (req, res) => {
   const l = listing(req);
   const list = await listReadings('r.contributor = $1 AND NOT r.removed', [address], l);
   await page(req, res, 'Contributions', views.list({
-    heading: 'CONTRIBUTED BY', intro: address, base: `/by/${address}`, notice: notice(req), empty: 'This wallet has not contributed a reading yet.', ...list, ...l,
+    heading: 'Contributed by', intro: address, base: `/by/${address}`, notice: notice(req), empty: 'This wallet has not contributed a reading yet.', ...list, ...l,
   }));
 }));
 
@@ -363,7 +364,7 @@ app.get('/reading/:slug', wrap(async (req, res) => {
   await page(req, res, reading.title, views.reading({
     reading, comments, user: req.user, isLibrarian: req.isLibrarian,
     recommended: Boolean(mine[0]), canEdit: canEdit(req, reading), notice: notice(req),
-  }));
+  }), { shelf: reading.shelf_slug });
 }));
 
 // ---------- contributing ----------
@@ -567,7 +568,7 @@ app.post('/desk/librarians/remove', wrap(async (req, res) => {
 
 // ---------- errors ----------
 
-app.use((req, res, next) => next(new HttpError(404, 'This aisle leads nowhere')));
+app.use((req, res, next) => next(new HttpError(404, 'There is nothing at this address')));
 
 app.use((err, req, res, next) => {
   let status = err instanceof HttpError ? err.status : 500;
@@ -577,7 +578,7 @@ app.use((err, req, res, next) => {
   if (err.type === 'parameters.too.many') { status = 400; text = 'That request could not be read'; }
   if (status === 500) console.error(err);
   if (req.path.startsWith('/api/')) return res.status(status).json({ error: text });
-  const heading = status === 404 ? '404 · NOT FOUND' : status === 401 ? 'SIGN IN FIRST' : 'SOMETHING WENT WRONG';
+  const heading = status === 404 ? 'Page not found' : status === 401 ? 'Sign in first' : 'Something went wrong';
   const signIn = status === 401;
   const posted = req.method === 'POST';
   // After signing in from a failed form post, go back to the page the form was on.

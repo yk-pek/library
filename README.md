@@ -1,6 +1,6 @@
 # Alternet Library
 
-A library the community stocks itself. Anyone with a wallet can add a reading they think is worth other people's time. Readings are kept in full, on shelves by topic, each with a note from whoever shelved it. Early-web look, shared with the [Alternet Museum](https://github.com/yk-pek/museum); plain server-rendered HTML.
+A library the community stocks itself. Anyone with a wallet can add a reading they think is worth other people's time. Readings are kept in full, on shelves by topic, each with a note from whoever shelved it. Plain server-rendered HTML with a reading-room look: a green masthead, spine labels for the shelves, Public Sans for signage and Newsreader for text. Both fonts are served from `public/fonts` (SIL Open Font License, see `public/fonts/LICENSE.txt`).
 
 ## What it does
 

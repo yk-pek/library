@@ -1,10 +1,15 @@
 // Server-rendered pages. Every value that comes from the database goes through esc(),
 // except a reading's text, which goes through render() in text.js (it escapes first).
+// The site's Content-Security-Policy forbids inline styles, so all styling is by class.
 
 const { render, esc } = require('./text');
 
 const short = (address) => (address ? `${address.slice(0, 6)}…${address.slice(-4)}` : '');
-const day = (date) => new Date(date).toISOString().slice(0, 10);
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const day = (date) => {
+  const d = new Date(date);
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+};
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many || `${one}s`}`;
 
 const paragraphs = (text) =>
@@ -23,34 +28,60 @@ function teaser(text, max = 220) {
 function readingTime(words) {
   if (!words) return '';
   const minutes = Math.max(1, Math.round(words / 230));
-  return minutes < 60 ? `${minutes} min read` : `${Math.floor(minutes / 60)} h ${minutes % 60} min read`;
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}
+
+function recommendCount(n) {
+  if (n === 0) return 'No recommendations yet';
+  return n === 1 ? '1 reader recommends this' : `${n} readers recommend this`;
 }
 
 const who = (address) => `<a href="/by/${esc(address)}"><code>${esc(short(address))}</code></a>`;
 const tagLinks = (tags) => (tags || []).map((t) => `<a class="tag" href="/tag/${esc(t)}">#${esc(t)}</a>`).join('');
 const byline = (r) => `${esc(r.author)}${r.year ? `, ${esc(r.year)}` : ''}`;
+const joined = (parts) => parts.filter(Boolean).map((p, i) => `<span${i ? ' class="sep"' : ''}>${p}</span>`).join('');
+
+// ---------- spine labels ----------
+
+// Each shelf wears a spine label: a three-letter code on a coloured band. The starting
+// shelves have fixed colours; shelves added later get one from their name.
+const BANDS = 8;
+const FIRST_BANDS = { cypherpunk: 0, money: 1, governance: 2, 'network-states': 3, protocols: 4, culture: 5, alternet: 6 };
+
+function band(slug) {
+  if (Object.hasOwn(FIRST_BANDS, slug)) return FIRST_BANDS[slug];
+  let h = 0;
+  for (const ch of String(slug)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h % BANDS;
+}
+
+function shelfCode(name) {
+  const letters = String(name).replace(/^the\s+/i, '').normalize('NFKD').replace(/[^A-Za-z0-9]/g, '');
+  return (letters.slice(0, 3) || 'LIB').toUpperCase();
+}
+
+function label(s, current) {
+  return `<a class="label" href="/shelf/${esc(s.slug)}"${current ? ' aria-current="page"' : ''}><span class="label-code band-${band(s.slug)}">${esc(shelfCode(s.name))}</span><span class="label-name">${esc(s.name)}</span></a>`;
+}
+
+// ---------- page furniture ----------
 
 function box(heading, inner, attrs = '') {
-  return `<section class="box"${attrs}>${heading ? `<h2 class="bar">${esc(heading)}</h2>` : ''}${inner}</section>`;
+  return `<section class="box"${attrs}>${heading ? `<h1 class="bar">${esc(heading)}</h1>` : ''}${inner}</section>`;
 }
 
 const note = (text) => (text ? `<section class="box note" role="status">${esc(text)}</section>` : '');
 
 function signInBox(text, goto) {
   return `<p>${esc(text)}</p>
-    <button type="button" class="btn" data-action="signin"${goto ? ` data-goto="${esc(goto)}"` : ''}>Sign in with your wallet</button>
+    <button type="button" class="btn primary" data-action="signin"${goto ? ` data-goto="${esc(goto)}"` : ''}>Sign in with your wallet</button>
     <div class="msg" data-msg aria-live="polite"></div>`;
 }
 
-function layout({ title, shelves, user, isLibrarian, visitors, networkLabel, body }) {
-  const nav = shelves.map((s) => `<a class="btn" href="/shelf/${esc(s.slug)}">${esc(s.name)}</a>`).join('\n      ');
+function layout({ title, shelves, user, isLibrarian, visitors, networkLabel, currentShelf, body }) {
   const whoami = user
-    ? `<div class="who">Signed in as <a href="/by/${esc(user.address)}"><code>${esc(short(user.address))}</code></a>${isLibrarian ? ` · <a href="/desk">librarians' desk</a>` : ''} · <button type="button" class="linkish" data-action="signout">sign out</button></div>`
+    ? `<div class="who"><div class="wrap">Signed in as <a href="/by/${esc(user.address)}"><code>${esc(short(user.address))}</code></a>${isLibrarian ? `<span class="sep"><a href="/desk">Librarians' desk</a></span>` : ''}<span class="sep"><button type="button" class="linkish" data-action="signout">Sign out</button></span></div></div>`
     : '';
-  const counter =
-    visitors === undefined
-      ? ''
-      : `<div>You are reader no. <span class="counter">${String(visitors).padStart(6, '0')}</span></div>`;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -60,45 +91,54 @@ function layout({ title, shelves, user, isLibrarian, visitors, networkLabel, bod
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div class="page">
-  <header class="banner">
-    <a href="/" class="banner-title">*** ALTERNET LIBRARY ***</a>
-    <div class="banner-sub">readings from the community, for the community :: now on ${esc(networkLabel)}</div>
-  </header>
-  <nav class="nav" aria-label="Shelves">
-      ${nav}
-  </nav>
-  <nav class="nav" aria-label="Library">
-      <a class="btn" href="/all">All readings</a>
-      <a class="btn" href="/search">Search</a>
-      <a class="btn" href="/contribute"><b>+ Contribute a reading</b></a>
-  </nav>
-  ${whoami}
+<header class="masthead">
+  <div class="wrap">
+    <div>
+      <a href="/" class="brand-name">Alternet Library</a>
+      <div class="brand-sub">Readings from the community. Now on ${esc(networkLabel)}.</div>
+    </div>
+    <nav class="site-nav" aria-label="Library">
+      <a href="/all">All readings</a>
+      <a href="/search">Search</a>
+      <a class="cta" href="/contribute">Contribute a reading</a>
+    </nav>
+  </div>
+</header>
+<nav class="shelfbar" aria-label="Shelves">
+  <div class="wrap">
+    ${shelves.map((s) => label(s, s.slug === currentShelf)).join('\n    ')}
+  </div>
+</nav>
+${whoami}
+<main class="wrap main">
   ${body}
-  <hr>
-  <footer class="footer">
-    ${counter}
-    <div>Open shelves: anyone with a wallet can add a reading. Please share only what is free to share.</div>
-    <div><a href="https://wyd.silos.alternet.sh">&lt;&lt; wyd</a> | <a href="https://museum.silos.alternet.sh">Museum</a> | Alternet webring | <a href="https://silos.alternet.sh">SILOS &gt;&gt;</a></div>
-  </footer>
-</div>
+</main>
+<footer class="footer">
+  <div class="wrap">
+    <span>Open shelves: anyone with a wallet can add a reading. Share only what is free to share.${visitors === undefined ? '' : ` Reader no. ${esc(visitors)}.`}</span>
+    <span><a href="https://wyd.silos.alternet.sh">wyd</a><span class="sep"><a href="https://museum.silos.alternet.sh">Museum</a></span><span class="sep"><a href="https://silos.alternet.sh">SILOS</a></span></span>
+  </div>
+</footer>
 <script src="/wallet.js" defer></script>
 </body>
 </html>`;
 }
 
+// ---------- lists ----------
+
 function entry(r, { shelf = true } = {}) {
   const meta = [
-    plural(r.recs, 'recommendation'),
-    plural(r.comment_count, 'comment'),
-    readingTime(r.words),
+    r.recs ? plural(r.recs, 'recommendation') : '',
+    r.comment_count ? plural(r.comment_count, 'comment') : '',
+    readingTime(r.words) ? `${readingTime(r.words)} read` : '',
     shelf ? `<a href="/shelf/${esc(r.shelf_slug)}">${esc(r.shelf_name)}</a>` : '',
-    `added ${day(r.created_at)} by ${who(r.contributor)}`,
-  ].filter(Boolean);
+    `Shelved ${day(r.created_at)} by ${who(r.contributor)}`,
+  ];
   return `<li>
-    <div><a class="entry-title" href="/reading/${esc(r.slug)}">${esc(r.title)}</a> <span class="entry-by">by ${byline(r)}</span></div>
+    <div><a class="entry-title" href="/reading/${esc(r.slug)}">${esc(r.title)}</a></div>
+    <div class="entry-by">${byline(r)}</div>
     <p>${esc(teaser(r.note))}</p>
-    <div class="meta">${meta.join(' · ')}</div>
+    <div class="meta">${joined(meta)}</div>
     ${r.tags && r.tags.length ? `<div class="meta">${tagLinks(r.tags)}</div>` : ''}
   </li>`;
 }
@@ -106,33 +146,33 @@ function entry(r, { shelf = true } = {}) {
 const entries = (readings, opts) => `<ul class="entries">${readings.map((r) => entry(r, opts)).join('\n')}</ul>`;
 
 function sorter(base, sort, query = '') {
-  const link = (key, label) => (sort === key ? `<b>${label}</b>` : `<a href="${esc(base)}?${query}sort=${key}">${label}</a>`);
-  return `<div class="sorter">Sort: ${link('new', 'newest')} | ${link('top', 'most recommended')}</div>`;
+  const link = (key, text) => (sort === key ? `<b>${text}</b>` : `<a href="${esc(base)}?${query}sort=${key}">${text}</a>`);
+  return `<div class="sorter">Sort by ${link('new', 'newest')} or ${link('top', 'most recommended')}</div>`;
 }
 
 function pager(base, { sort, pageNo, more }, query = '') {
   if (pageNo === 1 && !more) return '';
   const href = (p) => `${esc(base)}?${query}sort=${sort}&amp;p=${p}`;
   return `<div class="pager">
-    <span>${pageNo > 1 ? `<a href="${href(pageNo - 1)}">&lt;&lt; previous page</a>` : ''}</span>
-    <span>${more ? `<a href="${href(pageNo + 1)}">next page &gt;&gt;</a>` : ''}</span>
+    <span>${pageNo > 1 ? `<a href="${href(pageNo - 1)}">Previous page</a>` : ''}</span>
+    <span>${more ? `<a href="${href(pageNo + 1)}">Next page</a>` : ''}</span>
   </div>`;
 }
 
 function home({ top, fresh, shelves, user }) {
-  const welcome = `<section class="box welcome"><b>Welcome, reader!</b> This is the Alternet Library: texts that people here found worth their time and want you to read too. Every reading is kept in full, with a note from whoever shelved it. Read, recommend, argue in the comments, and <a href="/contribute">add your own</a>.</section>`;
-  const best = top.length ? box('MOST RECOMMENDED', entries(top)) : '';
+  const welcome = `<section class="box welcome">Texts that people here found worth their time and want you to read too. Every reading is kept in full, with a note from whoever shelved it. Read, recommend, argue in the comments, and <a href="/contribute">add your own</a>.</section>`;
+  const best = top.length ? box('Most recommended', entries(top)) : '';
   const latest = box(
-    'NEW ON THE SHELVES',
+    'New on the shelves',
     fresh.length
-      ? `${entries(fresh)}<div class="pager"><span></span><span><a href="/all">all readings &gt;&gt;</a></span></div>`
-      : `<p>The shelves are empty. Be the first: <a href="/contribute">contribute a reading</a>${user ? '' : ' (you will need a wallet)'}.</p>`
+      ? `${entries(fresh)}<div class="pager"><span></span><span><a href="/all">All readings</a></span></div>`
+      : `<p class="lede">The shelves are empty. <a href="/contribute">Contribute the first reading</a>${user ? '' : ' (you will need a wallet)'}.</p>`
   );
   const list = box(
-    'THE SHELVES',
-    `<ol class="shelves">${shelves
-      .map((s) => `<li><a href="/shelf/${esc(s.slug)}"><b>${esc(s.name)}</b></a> (${plural(s.count, 'reading')})<br>${esc(s.blurb)}</li>`)
-      .join('')}</ol>`
+    'The shelves',
+    `<ul class="shelves">${shelves
+      .map((s) => `<li>${label(s)}<p>${esc(s.blurb)}<br><span class="meta">${plural(s.count, 'reading')}</span></p></li>`)
+      .join('')}</ul>`
   );
   return [welcome, best, latest, list].filter(Boolean).join('\n  ');
 }
@@ -140,7 +180,7 @@ function home({ top, fresh, shelves, user }) {
 function shelf({ shelf: s, readings, more, sort, pageNo }) {
   const base = `/shelf/${s.slug}`;
   return box(
-    `SHELF: ${s.name.toUpperCase()}`,
+    s.name,
     `<p class="lede">${esc(s.blurb)}</p>
     ${readings.length
       ? `${sorter(base, sort)}${entries(readings, { shelf: false })}${pager(base, { sort, pageNo, more })}`
@@ -151,7 +191,7 @@ function shelf({ shelf: s, readings, more, sort, pageNo }) {
 function list({ heading, intro, base, empty, readings, more, sort, pageNo, notice: n }) {
   return `${note(n)}${box(
     heading,
-    `${intro ? `<p class="meta">${esc(intro)}</p>` : ''}
+    `${intro ? `<p class="meta"><code>${esc(intro)}</code></p>` : ''}
     ${readings.length
       ? `${sorter(base, sort)}${entries(readings)}${pager(base, { sort, pageNo, more })}`
       : `<p>${esc(empty || 'Nothing here yet.')} <a href="/contribute">Contribute a reading</a>.</p>`}`
@@ -161,38 +201,49 @@ function list({ heading, intro, base, empty, readings, more, sort, pageNo, notic
 function search({ q, readings, more, sort, pageNo }) {
   const query = `q=${encodeURIComponent(q)}&amp;`;
   const form = `<form class="search" method="get" action="/search" role="search">
-      <input type="search" name="q" value="${esc(q)}" maxlength="100" aria-label="Search the library" placeholder="title, author, tag or words from the text">
-      <button class="btn" type="submit">Search</button>
+      <input type="search" name="q" value="${esc(q)}" maxlength="100" aria-label="Search the library" placeholder="Title, author, tag or words from the text">
+      <button class="btn primary" type="submit">Search</button>
     </form>`;
   let results = '';
   if (q) {
     results = readings.length
-      ? `<hr>${sorter('/search', sort, query)}${entries(readings)}${pager('/search', { sort, pageNo, more }, query)}`
-      : `<p>Nothing found for "${esc(q)}".</p>`;
+      ? `<p class="meta">&nbsp;</p>${sorter('/search', sort, query)}${entries(readings)}${pager('/search', { sort, pageNo, more }, query)}`
+      : `<p class="lede"><br>Nothing found for "${esc(q)}".</p>`;
   }
-  return box('SEARCH THE LIBRARY', `${form}${results}`);
+  return box('Search the library', `${form}${results}`);
 }
+
+// ---------- a reading ----------
 
 function reading({ reading: r, comments, user, isLibrarian, recommended, canEdit, notice: n }) {
   const removed = r.removed
     ? `<section class="box note" role="status"><b>Off the shelf.</b> Removed ${r.removed_at ? day(r.removed_at) : ''} by <code>${esc(short(r.removed_by))}</code>. Only librarians can see this page. Restore or delete it from the <a href="/desk">desk</a>.</section>`
     : '';
+
   const facts = [
-    ['AUTHOR', esc(r.author)],
-    r.year ? ['YEAR', esc(r.year)] : null,
-    ['SHELF', `<a href="/shelf/${esc(r.shelf_slug)}">${esc(r.shelf_name)}</a>`],
-    ['LENGTH', `${r.words.toLocaleString('en')} words${readingTime(r.words) ? ` · ${readingTime(r.words)}` : ''}`],
-    r.source_url ? ['SOURCE', `<a href="${esc(r.source_url)}" rel="noopener nofollow ugc">${esc(teaser(r.source_url, 70))}</a>`] : null,
-    r.tags.length ? ['TAGS', tagLinks(r.tags)] : null,
+    ['Author', esc(r.author)],
+    r.year ? ['Year', esc(r.year)] : null,
+    ['Shelf', `<a href="/shelf/${esc(r.shelf_slug)}">${esc(r.shelf_name)}</a>`],
+    ['Length', `${r.words.toLocaleString('en')} words${readingTime(r.words) ? `, ${readingTime(r.words)}` : ''}`],
+    r.source_url ? ['Source', `<a href="${esc(r.source_url)}" rel="noopener nofollow ugc">${esc(teaser(r.source_url.replace(/^https?:\/\//, ''), 48))}</a>`] : null,
+    r.tags.length ? ['Tags', tagLinks(r.tags)] : null,
+    ['Shelved', `${day(r.created_at)} by ${who(r.contributor)}`],
+    day(r.updated_at) !== day(r.created_at) ? ['Edited', day(r.updated_at)] : null,
   ].filter(Boolean);
 
-  const head = `<section class="box">
-    <h1>${esc(r.title)}</h1>
-    <table class="facts">${facts.map(([k, v]) => `<tr><th scope="row">${k}</th><td>${v}</td></tr>`).join('')}</table>
-    <div class="why">
-      <h2 class="plain">Why read this</h2>
-      ${paragraphs(r.note)}
-      <div class="meta">Shelved ${day(r.created_at)} by ${who(r.contributor)}${day(r.updated_at) !== day(r.created_at) ? ` · edited ${day(r.updated_at)}` : ''}</div>
+  let control = '';
+  if (r.removed) control = '';
+  else if (!user) control = `<button type="button" class="btn primary" data-action="signin">Sign in to recommend</button>`;
+  else if (recommended) control = `<div>You recommend this.</div><form method="post" action="/reading/${esc(r.slug)}/recommend"><input type="hidden" name="undo" value="yes"><button class="btn" type="submit">Withdraw</button></form>`;
+  else control = `<form method="post" action="/reading/${esc(r.slug)}/recommend"><button class="btn primary" type="submit">Recommend this reading</button></form>`;
+
+  const record = `<aside class="record" aria-label="About this reading">
+    <dl class="facts">${facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+    <div class="slip" id="recommend">
+      <div class="count">${recommendCount(r.recs)}</div>
+      ${control}
+      <div class="hint">One wallet, one recommendation.</div>
+      <div class="msg" data-msg aria-live="polite"></div>
     </div>
     ${canEdit && !r.removed
       ? `<div class="actions">
@@ -200,31 +251,19 @@ function reading({ reading: r, comments, user, isLibrarian, recommended, canEdit
           <form method="post" action="/reading/${esc(r.slug)}/remove"><button class="btn" type="submit">Take off the shelf</button></form>
         </div>`
       : ''}
-  </section>`;
-
-  const text = `<section class="box" aria-label="The text"><article class="text">${render(r.body)}</article></section>`;
-
-  let recommendControl;
-  if (r.removed) recommendControl = '';
-  else if (!user) recommendControl = `<button type="button" class="btn" data-action="signin">Sign in to recommend</button>`;
-  else if (recommended) recommendControl = `<span>You recommend this.</span><form method="post" action="/reading/${esc(r.slug)}/recommend"><input type="hidden" name="undo" value="yes"><button class="btn" type="submit">Withdraw</button></form>`;
-  else recommendControl = `<form method="post" action="/reading/${esc(r.slug)}/recommend"><button class="btn" type="submit"><b>Recommend this reading</b></button></form>`;
-  const recommend = box(
-    'RECOMMEND',
-    `<div class="recommend"><span class="count">${plural(r.recs, 'recommendation')}</span>${recommendControl}</div>
-    <p class="hint">One wallet, one recommendation.</p><div class="msg" data-msg aria-live="polite"></div>`,
-    ' id="recommend"'
-  );
+  </aside>`;
 
   const thread = comments.length
     ? `<ul class="comments">${comments
         .map((c) => `<li id="c${c.id}">
           ${paragraphs(c.body)}
-          <div class="meta">${who(c.address)}${c.address === r.contributor ? ' (contributor)' : ''} · ${day(c.created_at)}${
+          <div class="meta">${joined([
+            `${who(c.address)}${c.address === r.contributor ? ' (contributor)' : ''}`,
+            day(c.created_at),
             user && (isLibrarian || user.address === c.address)
-              ? ` · <form method="post" action="/comment/${c.id}/remove"><button class="linkish" type="submit">remove</button></form>`
-              : ''
-          }</div>
+              ? `<form method="post" action="/comment/${c.id}/remove"><button class="linkish" type="submit">Remove</button></form>`
+              : '',
+          ])}</div>
         </li>`)
         .join('\n')}</ul>`
     : '<p>No comments yet.</p>';
@@ -238,15 +277,29 @@ function reading({ reading: r, comments, user, isLibrarian, recommended, canEdit
         </form>`
       : `<button type="button" class="btn" data-action="signin">Sign in to comment</button><div class="msg" data-msg aria-live="polite"></div>`;
   }
-  const discussion = box(`COMMENTS (${comments.length})`, `${thread}${commentForm}`, ' id="comments"');
 
-  return [note(n), removed, head, text, recommend, discussion].filter(Boolean).join('\n  ');
+  const main = `<div class="reading-main">
+    <h1>${esc(r.title)}</h1>
+    <div class="why">
+      <h2>Why read this</h2>
+      ${paragraphs(r.note)}
+    </div>
+    <article class="text">${render(r.body)}</article>
+    <section class="discussion" id="comments">
+      <h2>Comments (${comments.length})</h2>
+      ${thread}${commentForm}
+    </section>
+  </div>`;
+
+  return [note(n), removed, `<div class="reading">${record}${main}</div>`].filter(Boolean).join('\n  ');
 }
+
+// ---------- contributing ----------
 
 const MARKUP_HELP = `<details>
     <summary>How to format the text</summary>
     <p class="hint">Plain text works as it is: leave a blank line between paragraphs. If you want more:</p>
-    <table class="facts">
+    <table class="help">
       <tr><th scope="row"># Heading</th><td>a heading (## and ### for smaller ones)</td></tr>
       <tr><th scope="row">&gt; quoted</th><td>a quotation</td></tr>
       <tr><th scope="row">- item</th><td>a list (1. for a numbered one)</td></tr>
@@ -284,46 +337,51 @@ function readingFields({ r = {}, shelves, maxChars }) {
 
 function contribute({ user, shelves, maxChars }) {
   if (!user) {
-    return box('CONTRIBUTE A READING', signInBox('Anyone with a wallet can add a reading to the library. Signing in only proves you own the address; it costs nothing and sends no transaction.'));
+    return box('Contribute a reading', signInBox('Anyone with a wallet can add a reading to the library. Signing in only proves you own the address; it costs nothing and sends no transaction.'));
   }
   return box(
-    'CONTRIBUTE A READING',
-    `<p>Add a text you think the community should read. It goes on the shelf straight away, under your wallet address <code>${esc(short(user.address))}</code>. You can edit it or take it down later.</p>
+    'Contribute a reading',
+    `<p class="lede">Add a text you think the community should read. It goes on the shelf straight away, under your wallet address <code>${esc(short(user.address))}</code>. You can edit it or take it down later.</p>
     <form class="form wide" method="post" action="/contribute">
       ${readingFields({ shelves, maxChars })}
       <label class="check"><input type="checkbox" name="rights" value="yes" required> <span>This text is free to share here: it is my own, in the public domain, or under a licence that allows it.</span></label>
-      <button class="btn" type="submit"><b>Put it on the shelf</b></button>
+      <button class="btn primary" type="submit">Put it on the shelf</button>
     </form>`
   );
 }
 
 function edit({ reading: r, shelves, maxChars }) {
   return box(
-    'EDIT READING',
+    'Edit reading',
     `<form class="form wide" method="post" action="/reading/${esc(r.slug)}/edit">
       ${readingFields({ r, shelves, maxChars })}
-      <div class="actions"><button class="btn" type="submit"><b>Save</b></button> <a href="/reading/${esc(r.slug)}">cancel</a></div>
+      <div class="actions"><button class="btn primary" type="submit">Save</button> <a href="/reading/${esc(r.slug)}">Cancel</a></div>
     </form>`
   );
 }
 
+// ---------- librarians' desk ----------
+
 function desk({ removed, shelves, librarians, totals, me, notice: n }) {
-  const counts = `<section class="box welcome"><b>The library holds</b> ${plural(totals.readings, 'reading')} from ${plural(totals.contributors, 'contributor')}, with ${plural(totals.recs, 'recommendation')} and ${plural(totals.comments, 'comment')}.
-    To take a reading or a comment down, open its page: librarians see the controls on every one.</section>`;
+  const counts = box(
+    "Librarians' desk",
+    `<p class="lede">The library holds ${plural(totals.readings, 'reading')} from ${plural(totals.contributors, 'contributor')}, with ${plural(totals.recs, 'recommendation')} and ${plural(totals.comments, 'comment')}.</p>
+    <p>To take a reading or a comment down, open its page: librarians see the controls on every one.</p>`
+  );
 
   const off = box(
-    'OFF THE SHELF',
+    'Off the shelf',
     removed.length
       ? `<div class="scroll"><table class="grid">
           <tr><th>Reading</th><th>Contributor</th><th>Removed</th><th></th></tr>
           ${removed
             .map((r) => `<tr>
-              <td><a href="/reading/${esc(r.slug)}">${esc(r.title)}</a><br><i>${byline(r)}</i></td>
+              <td><a href="/reading/${esc(r.slug)}">${esc(r.title)}</a><br>${byline(r)}</td>
               <td><code>${esc(short(r.contributor))}</code></td>
               <td>${r.removed_at ? day(r.removed_at) : ''} by <code>${esc(short(r.removed_by))}</code>${r.removed_by === r.contributor ? ' (the contributor)' : ''}</td>
               <td><div class="actions">
                 <form method="post" action="/desk/reading/${r.id}/restore"><button class="btn" type="submit">Put back</button></form>
-                <details><summary>delete…</summary><form method="post" action="/desk/reading/${r.id}/delete"><p class="hint">This erases the text, its recommendations and comments. It cannot be undone.</p><button class="btn" type="submit">Delete for good</button></form></details>
+                <details><summary>Delete…</summary><form method="post" action="/desk/reading/${r.id}/delete"><p class="hint">This erases the text, its recommendations and comments. It cannot be undone.</p><button class="btn" type="submit">Delete for good</button></form></details>
               </div></td>
             </tr>`)
             .join('')}
@@ -344,7 +402,7 @@ function desk({ removed, shelves, librarians, totals, me, notice: n }) {
     </tr>`)
     .join('');
   const shelfBox = box(
-    'SHELVES',
+    'Shelves',
     `<div class="scroll"><table class="grid">
       <tr><th>Name</th><th>Description</th><th>Order</th><th>Readings</th><th></th></tr>
       ${shelfRows}
@@ -358,7 +416,7 @@ function desk({ removed, shelves, librarians, totals, me, notice: n }) {
   );
 
   const people = box(
-    'LIBRARIANS',
+    'Librarians',
     `<div class="scroll"><table class="grid">
       <tr><th>Wallet</th><th>Since</th><th></th></tr>
       ${librarians
@@ -379,9 +437,9 @@ function desk({ removed, shelves, librarians, totals, me, notice: n }) {
 function message({ heading, text, signIn, goto, back }) {
   return box(
     heading,
-    `${signIn ? signInBox(text, goto) : `<p>${esc(text)}</p>`}
+    `${signIn ? signInBox(text, goto) : `<p class="lede">${esc(text)}</p>`}
     ${back ? '<p class="hint">Use your browser\'s back button to return to what you were writing; it should still be there.</p>' : ''}
-    <p><a href="/">&lt;&lt; back to the library</a></p>`
+    <p><br><a href="/">Back to the library</a></p>`
   );
 }
 
