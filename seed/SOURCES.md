@@ -18,5 +18,7 @@ Editors' introductions, footnotes and endnotes from the source editions are left
 | The Declaration of Independence (1776) | Project Gutenberg #1 via GITenberg | Public domain |
 | Bitcoin: A Peer-to-Peer Electronic Cash System (Nakamoto, 2008) | `ibz/bitcoin-whitepaper-markdown`; diagrams are that transcription's text drawings, formulas are left in LaTeX notation | Paper released under the MIT licence |
 | The Cathedral and the Bazaar (Raymond, 1997, rev. 2000) | `inferno986return/cathedral-bazaar-ebook` | Open Publication License 2.0; notice kept at the end of the text |
+| Smart Contracts (Szabo, 1994) | Nakamoto Institute's transcription, `NakamotoInstitute/nakamotoinstitute.org`; added links removed | Copyright Nick Szabo, "permission to redistribute without alteration hereby granted"; notice kept at the end of the text |
+| Ethereum Whitepaper (Buterin, 2014) | `ethereum/ethereum-org-website`, `public/content/whitepaper/index.md`; figures left out | The ethereum.org website is published under the MIT licence unless otherwise specified |
 
 Standard Ebooks editions modernise some spelling and punctuation. Project Gutenberg's header, licence text and name are not reproduced.

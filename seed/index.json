@@ -178,5 +178,35 @@
     "source_url": "http://www.catb.org/~esr/writings/cathedral-bazaar/cathedral-bazaar/",
     "note": "Why software built in the open by loosely coordinated strangers can beat software built behind closed doors. The lessons about releasing early and treating users as co-developers apply to building a network as much as a mail client.",
     "file": "the-cathedral-and-the-bazaar.md"
+  },
+  {
+    "slug": "smart-contracts",
+    "title": "Smart Contracts",
+    "author": "Nick Szabo",
+    "year": "1994",
+    "shelf": "cypherpunk",
+    "tags": [
+      "smart-contracts",
+      "cryptography",
+      "digital-cash"
+    ],
+    "source_url": "https://github.com/NakamotoInstitute/nakamotoinstitute.org",
+    "note": "The two-page note that named the idea: agreements whose terms are carried out by protocol, so that breaking them is expensive rather than merely illegal. Written twenty years before anyone could deploy one.",
+    "file": "smart-contracts.md"
+  },
+  {
+    "slug": "ethereum-whitepaper",
+    "title": "Ethereum Whitepaper: A Next-Generation Smart Contract and Decentralized Application Platform",
+    "author": "Vitalik Buterin",
+    "year": "2014",
+    "shelf": "protocols",
+    "tags": [
+      "ethereum",
+      "smart-contracts",
+      "whitepaper"
+    ],
+    "source_url": "https://ethereum.org/whitepaper/",
+    "note": "The proposal to put a general-purpose computer on a blockchain, so that contracts, organisations and currencies become programs anyone can deploy. Parts are dated (it predates proof of stake), but it is still the clearest statement of the idea this network runs on.",
+    "file": "ethereum-whitepaper.md"
   }
 ]
