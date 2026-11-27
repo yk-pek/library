@@ -128,7 +128,9 @@ function cleanUrl(value) {
 const LIST_FIELDS = `r.id, r.slug, r.title, r.author, r.year, r.shelf_slug, s.name AS shelf_name, r.note, r.tags, r.words,
   r.contributor, r.removed, r.removed_by, r.removed_at, r.created_at,
   (SELECT COUNT(*)::int FROM recommendations x WHERE x.reading_id = r.id) AS recs,
-  (SELECT COUNT(*)::int FROM comments c WHERE c.reading_id = r.id AND NOT c.removed) AS comment_count`;
+  (SELECT COUNT(*)::int FROM comments c WHERE c.reading_id = r.id AND NOT c.removed) AS comment_count,
+  (SELECT f.pages FROM files f WHERE f.reading_id = r.id) AS file_pages,
+  (SELECT f.size FROM files f WHERE f.reading_id = r.id) AS file_size`;
 const LIST_FROM = 'FROM readings r JOIN shelves s ON s.slug = r.shelf_slug';
 const ORDERS = { new: 'r.id DESC', top: 'recs DESC, r.id DESC' };
 
@@ -315,7 +317,22 @@ app.post('/api/import/link', wrap(async (req, res) => {
 
 app.put('/api/import/pdf', express.raw({ type: () => true, limit: importer.MAX_PDF_BYTES }), wrap(async (req, res) => {
   if (!Buffer.isBuffer(req.body) || !req.body.length) throw new HttpError(400, 'Choose a PDF file');
-  res.json(await importing(req, () => importer.fromPdf(req.body)));
+  let scanned = null;
+  const result = await importing(req, async () => {
+    const found = await importer.fromPdf(req.body);
+    if (found.scan) scanned = found;
+    return found;
+  });
+  if (!scanned) return res.json(result);
+
+  // A scan has no text to pull out, so the file itself is kept and attached to the reading
+  // when it is shelved. One waiting upload per wallet; a new one replaces the last.
+  const token = crypto.randomBytes(24).toString('base64url');
+  await pool.query('DELETE FROM files WHERE contributor = $1 AND reading_id IS NULL', [req.user.address]);
+  await pool.query('INSERT INTO files (token, contributor, data, size, pages) VALUES ($1, $2, $3, $4, $5)', [
+    token, req.user.address, req.body, req.body.length, scanned.pages,
+  ]);
+  res.json({ ...result, scan: true, file: token, size: req.body.length });
 }));
 
 app.use('/api', (req, res, next) => next(new HttpError(404, 'Not found')));
@@ -387,6 +404,20 @@ async function loadReading(slug) {
   return rows[0];
 }
 
+// The scanned PDF attached to a reading, as uploaded. It is someone else's file, so it is
+// served as a PDF and nothing else, with its own locked-down policy.
+app.get('/reading/:slug/scan.pdf', wrap(async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT f.data, r.removed FROM files f JOIN readings r ON r.id = f.reading_id WHERE r.slug = $1', [req.params.slug]
+  );
+  if (!rows[0] || (rows[0].removed && !req.isLibrarian)) throw new HttpError(404, 'There is no such file');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'");
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="${req.params.slug.replace(/[^a-z0-9-]/g, '')}.pdf"`);
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  res.send(rows[0].data);
+}));
+
 const canEdit = (req, reading) => Boolean(req.user && (req.isLibrarian || req.user.address === reading.contributor));
 
 app.get('/reading/:slug', wrap(async (req, res) => {
@@ -416,14 +447,15 @@ app.get('/contribute', wrap(async (req, res) => {
   await page(req, res, 'Contribute a reading', views.contribute({ user: req.user, shelves: await shelfList(), maxChars: MAX_BODY_CHARS }));
 }));
 
-async function readingForm(body) {
+async function readingForm(body, { hasFile = false } = {}) {
   const fields = {
     title: cleanText(body.title, 'The title', 200),
     author: cleanText(body.author, 'The author', 200),
     year: cleanText(body.year, 'The year', 20, { required: false }),
     source_url: cleanUrl(body.source_url),
     note: cleanText(body.note, 'Your note', 1500),
-    body: cleanText(body.body, 'The text', MAX_BODY_CHARS),
+    // A reading with a scanned PDF attached can leave the text empty.
+    body: cleanText(body.body, 'The text', MAX_BODY_CHARS, { required: !hasFile }),
     tags: cleanTags(body.tags),
     shelf_slug: typeof body.shelf === 'string' ? body.shelf : '',
   };
@@ -437,16 +469,26 @@ app.post('/contribute', wrap(async (req, res) => {
   const user = requireUser(req);
   rateLimit(`add:${user.address}`, 10, 3600_000);
   if (req.body.rights !== 'yes') throw new HttpError(400, 'Tick the box to confirm this text is free to share here');
-  const f = await readingForm(req.body);
+  // A scanned PDF uploaded a moment ago, waiting to be attached to this reading.
+  let fileId = null;
+  if (typeof req.body.file === 'string' && req.body.file) {
+    const { rows } = await pool.query('SELECT id FROM files WHERE token = $1 AND contributor = $2 AND reading_id IS NULL', [req.body.file, user.address]);
+    if (!rows[0]) throw new HttpError(400, 'The uploaded PDF is no longer waiting. Upload it again.');
+    fileId = rows[0].id;
+  }
+  const f = await readingForm(req.body, { hasFile: Boolean(fileId) });
   const base = slugify(f.title);
   for (let attempt = 0; ; attempt++) {
     const slug = attempt === 0 ? base : `${base}-${attempt < 4 ? attempt + 1 : crypto.randomBytes(3).toString('hex')}`;
     const { rows } = await pool.query(
       `INSERT INTO readings (slug, title, author, year, source_url, shelf_slug, note, body, tags, words, contributor)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (slug) DO NOTHING RETURNING slug`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) ON CONFLICT (slug) DO NOTHING RETURNING id, slug`,
       [slug, f.title, f.author, f.year, f.source_url, f.shelf_slug, f.note, f.body, f.tags, f.words, user.address]
     );
-    if (rows[0]) return res.redirect(303, `/reading/${rows[0].slug}?n=added`);
+    if (rows[0]) {
+      if (fileId) await pool.query('UPDATE files SET reading_id = $1 WHERE id = $2 AND reading_id IS NULL', [rows[0].id, fileId]);
+      return res.redirect(303, `/reading/${rows[0].slug}?n=added`);
+    }
     if (attempt > 8) throw new HttpError(500, 'Could not shelve that reading, please try again');
   }
 }));
@@ -467,7 +509,7 @@ app.get('/reading/:slug/edit', wrap(async (req, res) => {
 app.post('/reading/:slug/edit', wrap(async (req, res) => {
   const reading = await editable(req);
   rateLimit(`edit:${req.user.address}`, 30, 3600_000);
-  const f = await readingForm(req.body);
+  const f = await readingForm(req.body, { hasFile: reading.file_pages !== null });
   await pool.query(
     `UPDATE readings SET title = $1, author = $2, year = $3, source_url = $4, shelf_slug = $5, note = $6, body = $7, tags = $8, words = $9, updated_at = now()
      WHERE id = $10`,
@@ -639,6 +681,7 @@ init()
     setInterval(() => {
       pool.query(`DELETE FROM nonces WHERE created_at < now() - interval '1 day'`).catch(() => {});
       pool.query(`DELETE FROM sessions WHERE expires_at < now()`).catch(() => {});
+      pool.query(`DELETE FROM files WHERE reading_id IS NULL AND created_at < now() - interval '1 day'`).catch(() => {});
     }, 3600_000).unref();
     app.listen(PORT, () => console.log(`library listening on port ${PORT}`));
   })

@@ -351,14 +351,17 @@ async function fromPdf(bytes, url = '') {
       page.cleanup();
     }
     const body = pagesToMarkup(pages);
-    if (body.replace(/\s/g, '').length < 100) throw new ImportError('That PDF has no text in it, only pictures of pages (a scan). The library cannot read those yet.');
+    // No text to speak of means pictures of pages: a scan. The caller keeps the file itself.
+    const scan = body.replace(/\s/g, '').length < 100;
     let info = {};
     try { info = (await pdf.getMetadata()).info || {}; } catch { info = {}; }
     let title = squash(info.Title);
-    if (!title || /^(untitled|microsoft word|.*\.(docx?|pdf|tex|indd))/i.test(title)) title = squash((/^# (.+)$/m.exec(body) || [])[1]);
+    const junk = /^(untitled|microsoft word|scan|document|.*\.(docx?|pdf|tex|indd|tiff?|jpe?g))/i;
+    if (!title || junk.test(title)) title = scan ? '' : squash((/^# (.+)$/m.exec(body) || [])[1]);
     return {
-      title: title.slice(0, 200), author: squash(info.Author).slice(0, 200), year: yearFrom(info.CreationDate && String(info.CreationDate).slice(0, 6)),
-      source_url: url, body, pages: pdf.numPages,
+      title: title.slice(0, 200), author: squash(info.Author).slice(0, 200), // A scan's file date is when it was scanned, not when the work was written.
+      year: scan ? '' : yearFrom(info.CreationDate && String(info.CreationDate).slice(0, 6)),
+      source_url: url, body: scan ? '' : body, pages: pdf.numPages, scan,
     };
   } finally {
     try { await (pdf.destroy ? pdf.destroy() : pdf.cleanup && pdf.cleanup()); } catch { /* nothing to free */ }
@@ -367,7 +370,11 @@ async function fromPdf(bytes, url = '') {
 
 async function fromLink(raw) {
   const got = await fetchLink(raw);
-  if (got.isPdf) return fromPdf(got.bytes, got.url);
+  if (got.isPdf) {
+    const result = await fromPdf(got.bytes, got.url);
+    if (result.scan) throw new ImportError('That PDF is a scan: pictures of pages with no text to pull out. Download it and upload the file here instead, and the library will attach it to the reading.');
+    return result;
+  }
   const text = decode(got.bytes, got.type);
   if (got.type.includes('text/plain')) return fromPlainText(text, got.url);
   if (got.type && !/html|xml/.test(got.type)) throw new ImportError('That address is not a web page or a PDF.');

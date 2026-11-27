@@ -18,7 +18,7 @@
 
   // Never overwrite text the contributor has already typed or pasted.
   function ready() {
-    if (field('body').value.trim()) {
+    if (field('body').value.trim() && !field('scan-file').value) {
       say('The text box below already has text in it. Clear it first, then import.');
       return false;
     }
@@ -30,6 +30,15 @@
       var el = field(name);
       if (el && !el.value.trim() && data[name]) el.value = data[name];
     });
+    // A scan has no text: the PDF waits on the server and is attached when the reading is shelved.
+    field('scan-file').value = data.scan ? data.file : '';
+    field('scan-note').hidden = !data.scan;
+    field('body').required = !data.scan;
+    if (data.scan) {
+      say('This PDF is a scan (' + data.pages + (data.pages === 1 ? ' page' : ' pages') + '), so there is no text to pull out. It will be attached to the reading as a PDF. Fill in the title and author, choose a shelf and say why it is worth reading. The text box is optional. Shelve it within a day or the upload is cleared.', true);
+      field('title').focus();
+      return;
+    }
     field('body').value = data.body;
     var parts = ['Pulled in ' + Number(data.words).toLocaleString('en') + ' words' + (data.pages ? ' from ' + data.pages + (data.pages === 1 ? ' page' : ' pages') : '') + '.'];
     parts.push('Check the title, author and text below, choose a shelf, and say why it is worth reading.');

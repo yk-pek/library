@@ -31,6 +31,8 @@ function readingTime(words) {
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }
 
+const megabytes = (bytes) => (bytes < 1048576 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1048576).toFixed(1)} MB`);
+
 function recommendCount(n) {
   if (n === 0) return 'No recommendations yet';
   return n === 1 ? '1 reader recommends this' : `${n} readers recommend this`;
@@ -131,7 +133,7 @@ function entry(r, { shelf = true } = {}) {
   const meta = [
     r.recs ? plural(r.recs, 'recommendation') : '',
     r.comment_count ? plural(r.comment_count, 'comment') : '',
-    readingTime(r.words) ? `${readingTime(r.words)} read` : '',
+    r.file_pages !== null && r.file_pages !== undefined ? `Scanned PDF, ${plural(r.file_pages, 'page')}` : readingTime(r.words) ? `${readingTime(r.words)} read` : '',
     shelf ? `<a href="/shelf/${esc(r.shelf_slug)}">${esc(r.shelf_name)}</a>` : '',
     `Shelved ${day(r.created_at)} by ${who(r.contributor)}`,
   ];
@@ -221,11 +223,20 @@ function reading({ reading: r, comments, user, isLibrarian, recommended, canEdit
     ? `<section class="box note" role="status"><b>Off the shelf.</b> Removed ${r.removed_at ? day(r.removed_at) : ''} by <code>${esc(short(r.removed_by))}</code>. Only librarians can see this page. Restore or delete it from the <a href="/desk">desk</a>.</section>`
     : '';
 
+  const hasFile = r.file_pages !== null && r.file_pages !== undefined;
+  const scan = hasFile
+    ? `<div class="scan">
+        <p>This reading is a scanned document, kept as the PDF its contributor uploaded.${r.body ? ' Their notes on it follow.' : ''}</p>
+        <a class="btn primary" href="/reading/${esc(r.slug)}/scan.pdf">Open the PDF</a>
+        <span class="hint">${plural(r.file_pages, 'page')}, ${megabytes(r.file_size)}</span>
+      </div>`
+    : '';
   const facts = [
     ['Author', esc(r.author)],
     r.year ? ['Year', esc(r.year)] : null,
     ['Shelf', `<a href="/shelf/${esc(r.shelf_slug)}">${esc(r.shelf_name)}</a>`],
-    ['Length', `${r.words.toLocaleString('en')} words${readingTime(r.words) ? `, ${readingTime(r.words)}` : ''}`],
+    hasFile ? ['Format', `Scanned PDF, ${plural(r.file_pages, 'page')}`] : null,
+    r.words || !hasFile ? ['Length', `${r.words.toLocaleString('en')} words${readingTime(r.words) ? `, ${readingTime(r.words)}` : ''}`] : null,
     r.source_url ? ['Source', `<a href="${esc(r.source_url)}" rel="noopener nofollow ugc">${esc(teaser(r.source_url.replace(/^https?:\/\//, ''), 48))}</a>`] : null,
     r.tags.length ? ['Tags', tagLinks(r.tags)] : null,
     ['Shelved', `${day(r.created_at)} by ${who(r.contributor)}`],
@@ -285,7 +296,8 @@ function reading({ reading: r, comments, user, isLibrarian, recommended, canEdit
       <h2>Why read this</h2>
       ${paragraphs(r.note)}
     </div>
-    <article class="text">${render(r.body)}</article>
+    ${scan}
+    ${r.body ? `<article class="text">${render(r.body)}</article>` : ''}
     <section class="discussion" id="comments">
       <h2>Comments (${comments.length})</h2>
       ${thread}${commentForm}
@@ -311,7 +323,7 @@ const MARKUP_HELP = `<details>
     <p class="hint">Web addresses starting with https:// become links. Pictures and other HTML are not supported.</p>
   </details>`;
 
-function readingFields({ r = {}, shelves, maxChars }) {
+function readingFields({ r = {}, shelves, maxChars, hasFile = false }) {
   const value = (v) => esc(v || '');
   return `
     <label for="title">Title</label>
@@ -332,7 +344,8 @@ function readingFields({ r = {}, shelves, maxChars }) {
     <label for="note">Why read this? <span class="hint">Your note to the community. It is shown above the text and in every list.</span></label>
     <textarea id="note" name="note" maxlength="1500" required>${value(r.note)}</textarea>
     <label for="body">The full text <span class="hint">(up to ${maxChars.toLocaleString('en')} characters)</span></label>
-    <textarea id="body" class="long" name="body" maxlength="${maxChars}" required>${value(r.body)}</textarea>
+    <p class="hint" id="scan-note"${hasFile ? '' : ' hidden'}>A scanned PDF is attached to this reading, so the text is optional. Use it for a description or a transcript if you have one.</p>
+    <textarea id="body" class="long" name="body" maxlength="${maxChars}"${hasFile ? '' : ' required'}>${value(r.body)}</textarea>
     ${MARKUP_HELP}`;
 }
 
@@ -345,18 +358,19 @@ function contribute({ user, shelves, maxChars }) {
     `<p class="lede">Add a text you think the community should read. It goes on the shelf straight away, under your wallet address <code>${esc(short(user.address))}</code>. You can edit it or take it down later.</p>
     <section class="importer" aria-labelledby="import-h">
       <h2 id="import-h">Start from a link or a PDF</h2>
-      <p class="hint">The library pulls out the text and fills in the form below. Nothing is shelved until you have checked it and pressed the button at the bottom. The page or file itself is not kept.</p>
+      <p class="hint">The library pulls out the text and fills in the form below. Nothing is shelved until you have checked it and pressed the button at the bottom. The page or file itself is not kept, unless the PDF is a scan with no text to pull out: then the PDF is attached to the reading.</p>
       <div class="importer-row">
         <label for="import-url">Web address</label>
         <div class="search"><input id="import-url" type="url" maxlength="2000" placeholder="https://"><button type="button" class="btn" data-import="link">Fetch the text</button></div>
       </div>
       <div class="importer-row">
-        <label for="import-pdf">PDF file <span class="hint">(up to 15 MB, with real text rather than scanned pages)</span></label>
+        <label for="import-pdf">PDF file <span class="hint">(up to 15 MB; a scanned PDF is attached as a file instead)</span></label>
         <input id="import-pdf" type="file" accept="application/pdf,.pdf" data-import="pdf">
       </div>
       <div class="msg" data-import-msg role="status" aria-live="polite"></div>
     </section>
     <form class="form wide" method="post" action="/contribute">
+      <input type="hidden" name="file" id="scan-file" value="">
       ${readingFields({ shelves, maxChars })}
       <label class="check"><input type="checkbox" name="rights" value="yes" required> <span>This text is free to share here: it is my own, in the public domain, or under a licence that allows it.</span></label>
       <button class="btn primary" type="submit">Put it on the shelf</button>
@@ -368,7 +382,7 @@ function edit({ reading: r, shelves, maxChars }) {
   return box(
     'Edit reading',
     `<form class="form wide" method="post" action="/reading/${esc(r.slug)}/edit">
-      ${readingFields({ r, shelves, maxChars })}
+      ${readingFields({ r, shelves, maxChars, hasFile: r.file_pages !== null && r.file_pages !== undefined })}
       <div class="actions"><button class="btn primary" type="submit">Save</button> <a href="/reading/${esc(r.slug)}">Cancel</a></div>
     </form>`
   );

@@ -67,6 +67,19 @@ CREATE TABLE IF NOT EXISTS comments (
 );
 CREATE INDEX IF NOT EXISTS comments_reading_idx ON comments(reading_id, id);
 
+-- A scanned PDF attached to a reading, kept as uploaded. An upload waits here without a
+-- reading until its contributor shelves it; uploads never shelved are cleared after a day.
+CREATE TABLE IF NOT EXISTS files (
+  id          SERIAL PRIMARY KEY,
+  token       TEXT NOT NULL UNIQUE,
+  contributor TEXT NOT NULL,
+  data        BYTEA NOT NULL,
+  size        INTEGER NOT NULL,
+  pages       INTEGER NOT NULL DEFAULT 0,
+  reading_id  INTEGER UNIQUE REFERENCES readings(id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE IF NOT EXISTS librarians (
   address    TEXT PRIMARY KEY,
   added_by   TEXT,
