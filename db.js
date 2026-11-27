@@ -1,5 +1,8 @@
 const { Pool } = require('pg');
+const fs = require('fs');
+const path = require('path');
 const { isAddress } = require('ethers');
+const { countWords } = require('./text');
 
 if (!process.env.DATABASE_URL) {
   console.error('DATABASE_URL is not set');
@@ -139,6 +142,29 @@ async function seed() {
   }
 }
 
+// The library's founding collection: public-domain and openly licensed texts kept in the
+// repository under seed/. Each is shelved once, under the first librarian's wallet. A text
+// that a librarian later edits or deletes is never put back or overwritten.
+async function shelveSeeds() {
+  const dir = path.join(__dirname, 'seed');
+  let index;
+  try { index = JSON.parse(fs.readFileSync(path.join(dir, 'index.json'), 'utf8')); } catch { return; }
+  const { rows } = await pool.query('SELECT address FROM librarians ORDER BY created_at LIMIT 1');
+  if (!rows[0]) return;
+  for (const s of index) {
+    const fresh = await pool.query(`INSERT INTO meta (key, value) VALUES ($1, '1') ON CONFLICT DO NOTHING RETURNING key`, [`seed:${s.slug}`]);
+    if (!fresh.rows[0]) continue;
+    const body = fs.readFileSync(path.join(dir, s.file), 'utf8').trim();
+    const done = await pool.query(
+      `INSERT INTO readings (slug, title, author, year, source_url, shelf_slug, note, body, tags, words, contributor)
+       SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11 WHERE EXISTS (SELECT 1 FROM shelves WHERE slug = $6)
+       ON CONFLICT (slug) DO NOTHING RETURNING id`,
+      [s.slug, s.title, s.author, s.year || '', s.source_url || '', s.shelf, s.note, body, s.tags || [], countWords(body), rows[0].address]
+    );
+    console.log(done.rows[0] ? `Shelved "${s.title}"` : `Skipped "${s.title}" (its shelf is gone or the address is taken)`);
+  }
+}
+
 async function init() {
   // The database silo may still be starting when the app boots, so retry for a while.
   for (let attempt = 1; ; attempt++) {
@@ -152,6 +178,7 @@ async function init() {
     }
   }
   await seed();
+  await shelveSeeds();
 }
 
 module.exports = { pool, init };

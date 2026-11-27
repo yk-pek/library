@@ -1,0 +1,182 @@
+[
+  {
+    "slug": "leviathan",
+    "title": "Leviathan",
+    "author": "Thomas Hobbes",
+    "year": "1651",
+    "shelf": "governance",
+    "tags": [
+      "social-contract",
+      "sovereignty",
+      "political-philosophy"
+    ],
+    "source_url": "https://github.com/standardebooks/thomas-hobbes_leviathan",
+    "note": "The founding argument for why people submit to a common power at all. Hobbes starts from individuals in a state of nature and builds the state from their consent, which is the question any new jurisdiction has to answer for itself.",
+    "file": "leviathan.md"
+  },
+  {
+    "slug": "second-treatise-of-government",
+    "title": "Second Treatise of Government",
+    "author": "John Locke",
+    "year": "1689",
+    "shelf": "governance",
+    "tags": [
+      "natural-rights",
+      "property",
+      "consent"
+    ],
+    "source_url": "https://github.com/standardebooks/john-locke_two-treatises-of-government",
+    "note": "Locke’s answer to Hobbes: government exists to protect life, liberty and property, holds power only in trust, and can be dissolved when it breaks that trust. The second of his Two Treatises, and the one later constitutions borrowed from.",
+    "file": "second-treatise-of-government.md"
+  },
+  {
+    "slug": "the-federalist-papers",
+    "title": "The Federalist Papers",
+    "author": "Alexander Hamilton, James Madison and John Jay",
+    "year": "1788",
+    "shelf": "governance",
+    "tags": [
+      "constitution",
+      "federalism",
+      "checks-and-balances"
+    ],
+    "source_url": "https://github.com/standardebooks/alexander-hamilton_john-jay_james-madison_the-federalist-papers",
+    "note": "Eighty-five essays arguing for a new constitution, written to persuade people who could still say no. The clearest record of founders reasoning in public about factions, separation of powers and how a design fails.",
+    "file": "the-federalist-papers.md"
+  },
+  {
+    "slug": "on-liberty",
+    "title": "On Liberty",
+    "author": "John Stuart Mill",
+    "year": "1859",
+    "shelf": "governance",
+    "tags": [
+      "liberty",
+      "free-speech",
+      "individuality"
+    ],
+    "source_url": "https://github.com/standardebooks/john-stuart-mill_on-liberty",
+    "note": "Where the line sits between what a society may decide for you and what is yours alone. Mill’s harm principle and his defence of free discussion are still the starting point for arguments about speech and moderation.",
+    "file": "on-liberty.md"
+  },
+  {
+    "slug": "civil-disobedience",
+    "title": "Civil Disobedience",
+    "author": "Henry David Thoreau",
+    "year": "1849",
+    "shelf": "governance",
+    "tags": [
+      "dissent",
+      "conscience",
+      "exit"
+    ],
+    "source_url": "https://github.com/standardebooks/henry-david-thoreau_essays",
+    "note": "A short essay on what a person owes a government they did not choose and do not agree with. Thoreau’s answer is to withdraw cooperation, which makes it an early text on exit as well as protest.",
+    "file": "civil-disobedience.md"
+  },
+  {
+    "slug": "no-treason",
+    "title": "No Treason",
+    "author": "Lysander Spooner",
+    "year": "1867–1870",
+    "shelf": "governance",
+    "tags": [
+      "consent",
+      "constitution",
+      "anarchism"
+    ],
+    "source_url": "https://github.com/standardebooks/lysander-spooner_no-treason",
+    "note": "Spooner asks whether a constitution can bind anyone who never signed it, and concludes it cannot. The sharpest statement of the case for explicit, individual consent, which is exactly what an on-chain founding agreement claims to provide.",
+    "file": "no-treason.md"
+  },
+  {
+    "slug": "the-wealth-of-nations",
+    "title": "The Wealth of Nations",
+    "author": "Adam Smith",
+    "year": "1776",
+    "shelf": "money",
+    "tags": [
+      "economics",
+      "markets",
+      "division-of-labour"
+    ],
+    "source_url": "https://github.com/standardebooks/adam-smith_the-wealth-of-nations",
+    "note": "The book that explained how specialisation and trade make a society rich without anyone directing it. Long, but Book I on the division of labour, money and prices is the part everything else in economics leans on.",
+    "file": "the-wealth-of-nations.md"
+  },
+  {
+    "slug": "the-republic",
+    "title": "The Republic",
+    "author": "Plato, translated by Benjamin Jowett",
+    "year": "c. 375 BC",
+    "shelf": "governance",
+    "tags": [
+      "justice",
+      "philosophy",
+      "ideal-state"
+    ],
+    "source_url": "https://github.com/standardebooks/plato_dialogues_benjamin-jowett",
+    "note": "The first attempt to design a just city from first principles, and to ask who should rule it. Worth reading as much for where the design goes wrong as for what it gets right.",
+    "file": "the-republic.md"
+  },
+  {
+    "slug": "magna-carta",
+    "title": "Magna Carta",
+    "author": "King John and the barons of England, translated by W. S. McKechnie",
+    "year": "1215",
+    "shelf": "governance",
+    "tags": [
+      "charter",
+      "rule-of-law",
+      "due-process"
+    ],
+    "source_url": "https://github.com/GITenberg/The-Magna-Carta_10000",
+    "note": "The charter in which a king accepted, in writing, that he was bound by law. Most clauses are about feudal dues; clauses 39 and 40, on lawful judgment and justice not being sold, are why it is still read.",
+    "file": "magna-carta.md"
+  },
+  {
+    "slug": "the-declaration-of-independence",
+    "title": "The Declaration of Independence",
+    "author": "Thomas Jefferson and the Second Continental Congress",
+    "year": "1776",
+    "shelf": "governance",
+    "tags": [
+      "founding",
+      "independence",
+      "natural-rights"
+    ],
+    "source_url": "https://github.com/GITenberg/United-States-Declaration-of-Independence_1",
+    "note": "A founding document written as an argument: what governments are for, what this one did wrong, and why separation follows. A model of how to state a case for exit plainly.",
+    "file": "the-declaration-of-independence.md"
+  },
+  {
+    "slug": "bitcoin-a-peer-to-peer-electronic-cash-system",
+    "title": "Bitcoin: A Peer-to-Peer Electronic Cash System",
+    "author": "Satoshi Nakamoto",
+    "year": "2008",
+    "shelf": "money",
+    "tags": [
+      "bitcoin",
+      "proof-of-work",
+      "whitepaper"
+    ],
+    "source_url": "https://bitcoin.org/bitcoin.pdf",
+    "note": "Nine pages that solved double-spending without a trusted party and started everything this network is built on. Short enough to read in one sitting and precise enough to reread.",
+    "file": "bitcoin-a-peer-to-peer-electronic-cash-system.md"
+  },
+  {
+    "slug": "the-cathedral-and-the-bazaar",
+    "title": "The Cathedral and the Bazaar",
+    "author": "Eric S. Raymond",
+    "year": "1997",
+    "shelf": "protocols",
+    "tags": [
+      "open-source",
+      "software",
+      "collaboration"
+    ],
+    "source_url": "http://www.catb.org/~esr/writings/cathedral-bazaar/cathedral-bazaar/",
+    "note": "Why software built in the open by loosely coordinated strangers can beat software built behind closed doors. The lessons about releasing early and treating users as co-developers apply to building a network as much as a mail client.",
+    "file": "the-cathedral-and-the-bazaar.md"
+  }
+]

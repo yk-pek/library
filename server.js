@@ -13,7 +13,8 @@ const SESSION_DAYS = 30;
 const NONCE_MINUTES = 10;
 const NETWORK_LABEL = process.env.NETWORK_LABEL || 'testnet';
 const CHAIN_ID = /^[0-9]{1,12}$/.test(process.env.CHAIN_ID || '') ? process.env.CHAIN_ID : '1';
-const MAX_BODY_CHARS = 400_000;
+// Long enough for a whole book: The Wealth of Nations is about 2.3 million characters.
+const MAX_BODY_CHARS = 2_500_000;
 const PER_PAGE = 30;
 
 const NOTICES = {
@@ -160,7 +161,7 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '32kb' }));
 // Full texts arrive as ordinary form posts, so the limit is generous.
-app.use(express.urlencoded({ extended: false, limit: '3mb', parameterLimit: 30 }));
+app.use(express.urlencoded({ extended: false, limit: '16mb', parameterLimit: 30 }));
 
 // Block cross-site writes: a browser's Origin, when sent, must be this site.
 app.use((req, res, next) => {

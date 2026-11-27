@@ -30,7 +30,10 @@ function inline(text) {
   return out.replace(/\u0000(\d+)\u0000/g, (m, i) => kept[Number(i)]);
 }
 
-function render(source) {
+// With { contents: true } headings get ids and the result is { html, headings }, so a long
+// text can carry a table of contents; otherwise the result is the HTML alone.
+function render(source, { contents = false } = {}) {
+  const headings = [];
   const lines = String(source || '').replace(/\u0000/g, '').replace(/\r\n?/g, '\n').split('\n');
   const html = [];
   let para = [];
@@ -42,7 +45,7 @@ function render(source) {
     para = [];
   };
   const flushList = () => {
-    if (list) html.push(`<${list.tag}>${list.items.map((i) => `<li>${inline(esc(i))}</li>`).join('')}</${list.tag}>`);
+    if (list) html.push(`<${list.tag}${list.start > 1 ? ` start="${list.start}"` : ''}>${list.items.map((i) => `<li>${inline(esc(i))}</li>`).join('')}</${list.tag}>`);
     list = null;
   };
   const flushQuote = () => {
@@ -72,7 +75,13 @@ function render(source) {
     if (heading) {
       flush();
       const level = heading[1].length + 2; // the page's own h1 and h2 are taken
-      html.push(`<h${level}>${inline(esc(heading[2]))}</h${level}>`);
+      if (contents) {
+        const id = `s${headings.length + 1}`;
+        headings.push({ id, level: heading[1].length, text: heading[2].replace(/[*`]/g, '') });
+        html.push(`<h${level} id="${id}">${inline(esc(heading[2]))}</h${level}>`);
+      } else {
+        html.push(`<h${level}>${inline(esc(heading[2]))}</h${level}>`);
+      }
       continue;
     }
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(trimmed)) { flush(); html.push('<hr>'); continue; }
@@ -82,13 +91,14 @@ function render(source) {
     flushQuote();
 
     const bullet = trimmed.match(/^[-*•]\s+(.+)$/);
-    const numbered = trimmed.match(/^\d{1,3}[.)]\s+(.+)$/);
+    const numbered = trimmed.match(/^(\d{1,4})[.)]\s+(.+)$/);
     if (bullet || numbered) {
       flushPara();
       const tag = bullet ? 'ul' : 'ol';
       if (list && list.tag !== tag) flushList();
-      if (!list) list = { tag, items: [] };
-      list.items.push((bullet || numbered)[1]);
+      // A numbered list keeps the number it starts at, so "7." on its own stays 7.
+      if (!list) list = { tag, items: [], start: numbered ? Number(numbered[1]) : 1 };
+      list.items.push(bullet ? bullet[1] : numbered[2]);
       continue;
     }
     // An indented line right after a list item continues that item.
@@ -98,7 +108,7 @@ function render(source) {
   }
   // An unclosed fence is handled by the loop running off the end.
   flush();
-  return html.join('\n');
+  return contents ? { html: html.join('\n'), headings } : html.join('\n');
 }
 
 function countWords(source) {

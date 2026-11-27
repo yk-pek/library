@@ -4,9 +4,11 @@ A library the community stocks itself. Anyone with a wallet can add a reading th
 
 ## What it does
 
-- **Readings:** title, author, year, shelf, tags, an optional link to the original, the contributor's "why read this" note, and the full text (up to 400,000 characters). The text is plain text with a small subset of Markdown: headings, quotations, lists, rules, italic, bold, fenced blocks that keep line breaks, and bare `https://` links. Everything is escaped first; no HTML or pictures.
+- **Readings:** title, author, year, shelf, tags, an optional link to the original, the contributor's "why read this" note, and the full text. The text is plain text with a small subset of Markdown: headings, quotations, lists, rules, italic, bold, fenced blocks that keep line breaks, and bare `https://` links. Everything is escaped first; no HTML or pictures.
 - **Import:** on the contribute page a signed-in contributor can start from a web address or a PDF (up to 15 MB). The library pulls out the text, turns it into the markup above and fills in the form (title, author, year, source link, text) for the contributor to check before shelving. The page or file is not kept. Links must be public web pages; redirects are re-checked and there are size and time limits.
 - **Scanned PDFs:** an uploaded PDF with no text layer (pictures of pages) cannot be converted, so the PDF itself is stored in Postgres and attached to the reading. Its page shows an "Open the PDF" button; the text box becomes optional and can hold a description or transcript. An upload not shelved within a day is cleared. The text of a scan is not searchable.
+- **Founding collection:** twelve public-domain and openly licensed texts in `seed/` are shelved automatically the first time the app starts with a librarian set (sources and rights in `seed/SOURCES.md`).
+- **Long texts:** a reading can be up to 2,500,000 characters, enough for a whole book. A reading with four or more headings gets a collapsible contents list with links to each section.
 - **Open shelf:** a reading is public the moment it is added. The contributor can edit it or take it down. Contributors tick a box to confirm the text is theirs, in the public domain, or licensed for sharing.
 - **Shelves and tags:** every reading sits on one shelf and can carry up to five tags. Shelves, tags and contributors each have a page, sortable by newest or most recommended.
 - **Recommend:** one wallet, one recommendation per reading. It can be withdrawn.

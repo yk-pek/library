@@ -116,9 +116,10 @@ function inline(node) {
   return out;
 }
 
-function htmlToMarkup(root) {
+// `top` is the heading level that becomes "#"; by default the highest one present.
+function htmlToMarkup(root, top = 0) {
   const levels = [...root.querySelectorAll('h1,h2,h3,h4,h5,h6')].map((h) => Number(h.tagName[1]));
-  const top = levels.length ? Math.min(...levels) : 1;
+  if (!top) top = levels.length ? Math.min(...levels) : 1;
   const blocks = [];
   const para = (text) => { const t = text.replace(/\s+/g, ' ').trim(); if (t) blocks.push(t); };
 
@@ -139,7 +140,7 @@ function htmlToMarkup(root) {
       flushLoose();
       if (/^H[1-6]$/.test(tag)) {
         const text = inline(child).replace(/\*+/g, '').replace(/\s+/g, ' ').trim();
-        if (text) blocks.push(`${'#'.repeat(Math.min(3, Number(tag[1]) - top + 1))} ${text}`);
+        if (text) blocks.push(`${'#'.repeat(Math.max(1, Math.min(3, Number(tag[1]) - top + 1)))} ${text}`);
       } else if (tag === 'P' || tag === 'DT' || tag === 'DD' || tag === 'SUMMARY' || tag === 'ADDRESS') {
         if (child.querySelector('p,ul,ol,blockquote,pre')) walk(child); else para(inline(child));
       } else if (tag === 'BLOCKQUOTE') {

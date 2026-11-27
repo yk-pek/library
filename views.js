@@ -218,11 +218,34 @@ function search({ q, readings, more, sort, pageNo }) {
 
 // ---------- a reading ----------
 
+// Rendering a whole book takes a moment, so the last few results are kept. The key changes
+// whenever the reading is edited.
+const rendered = new Map();
+function renderBody(r) {
+  const key = `${r.id}:${new Date(r.updated_at).getTime()}`;
+  let hit = rendered.get(key);
+  if (!hit) {
+    hit = render(r.body, { contents: true });
+    rendered.set(key, hit);
+    if (rendered.size > 6) rendered.delete(rendered.keys().next().value);
+  }
+  return hit;
+}
+
+function contentsList(headings) {
+  if (headings.length < 4) return '';
+  return `<details class="contents">
+      <summary>Contents <span class="hint">(${headings.length} sections)</span></summary>
+      <ul>${headings.map((h) => `<li class="lv${h.level}"><a href="#${h.id}">${esc(h.text)}</a></li>`).join('')}</ul>
+    </details>`;
+}
+
 function reading({ reading: r, comments, user, isLibrarian, recommended, canEdit, notice: n }) {
   const removed = r.removed
     ? `<section class="box note" role="status"><b>Off the shelf.</b> Removed ${r.removed_at ? day(r.removed_at) : ''} by <code>${esc(short(r.removed_by))}</code>. Only librarians can see this page. Restore or delete it from the <a href="/desk">desk</a>.</section>`
     : '';
 
+  const body = r.body ? renderBody(r) : { html: '', headings: [] };
   const hasFile = r.file_pages !== null && r.file_pages !== undefined;
   const scan = hasFile
     ? `<div class="scan">
@@ -297,7 +320,8 @@ function reading({ reading: r, comments, user, isLibrarian, recommended, canEdit
       ${paragraphs(r.note)}
     </div>
     ${scan}
-    ${r.body ? `<article class="text">${render(r.body)}</article>` : ''}
+    ${contentsList(body.headings)}
+    ${r.body ? `<article class="text">${body.html}</article>` : ''}
     <section class="discussion" id="comments">
       <h2>Comments (${comments.length})</h2>
       ${thread}${commentForm}

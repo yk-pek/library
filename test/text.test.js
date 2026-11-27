@@ -11,6 +11,7 @@ const cases = [
   ['bullets', '- a\n- b', '<ul><li>a</li><li>b</li></ul>'],
   ['numbers', '1. a\n2) b', '<ol><li>a</li><li>b</li></ol>'],
   ['list item continues when indented', '- a\n  more\n- b', '<ul><li>a more</li><li>b</li></ul>'],
+  ['numbered list keeps its first number', '7. a\n8. b', '<ol start="7"><li>a</li><li>b</li></ol>'],
   ['rule', 'a\n\n---\n\nb', '<p>a</p>\n<hr>\n<p>b</p>'],
   ['fence keeps lines and ignores markup', '```\n*a*\n  b\n```\nc', '<pre>*a*\n  b</pre>\n<p>c</p>'],
   ['unclosed fence', '```\na', '<pre>a</pre>'],
@@ -40,7 +41,7 @@ for (const [name, input, expected] of cases) {
 }
 
 // Whatever goes in, only the fixed set of tags may come out.
-const ALLOWED = /^<\/?(p|h3|h4|h5|blockquote|ul|ol|li|hr|pre|b|i|code)>$|^<a href="https?:\/\/[^"<>\s]*" rel="noopener nofollow ugc">$|^<\/a>$/;
+const ALLOWED = /^<\/?(p|h3|h4|h5|blockquote|ul|ol|li|hr|pre|b|i|code)>$|^<ol start="\d+">$|^<a href="https?:\/\/[^"<>\s]*" rel="noopener nofollow ugc">$|^<\/a>$/;
 const pieces = ['<', '>', '"', "'", '&', '*', '**', '`', '```', '\n', '\n\n', '# ', '> ', '- ', '1. ', 'https://a.b/c', 'x', ' ', '<script>', 'javascript:', '\u0000', '0', '---'];
 let seed = 7;
 const rand = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
@@ -53,6 +54,10 @@ for (let n = 0; n < 5000; n++) {
   }
   if (/\u0000/.test(out)) { failed++; console.error(`FAIL placeholder left in output from ${JSON.stringify(input)}`); }
 }
+
+const withContents = render('# One\n\ntext\n\n## *Two*', { contents: true });
+assert.strictEqual(withContents.html, '<h3 id="s1">One</h3>\n<p>text</p>\n<h4 id="s2"><i>Two</i></h4>');
+assert.deepStrictEqual(withContents.headings, [{ id: 's1', level: 1, text: 'One' }, { id: 's2', level: 2, text: 'Two' }]);
 
 assert.strictEqual(countWords("It's a well-known fact: 42 things."), 6);
 
